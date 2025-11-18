@@ -38,6 +38,23 @@ export const ChessGameProps = z.object({
   }),
   orientation: z.enum(["white", "black"]).optional().default("white"),
   musicGenre: z.string().optional().default("none"),
+  soundEffects: z.object({
+    enabled: z.boolean().optional().default(true),
+    capturesEnabled: z.boolean().optional().default(true),
+    crowdEnabled: z.boolean().optional().default(true),
+    atmosphereEnabled: z.boolean().optional().default(true),
+    clockEnabled: z.boolean().optional().default(false),
+    specialMovesEnabled: z.boolean().optional().default(true),
+    masterVolume: z.number().optional().default(1.0),
+  }).optional(),
+  mediaLibrary: z.object({
+    enabled: z.boolean().optional().default(true),
+    useVenueShots: z.boolean().optional().default(true),
+    usePlayerMedia: z.boolean().optional().default(true),
+    useAtmosphere: z.boolean().optional().default(true),
+    useTransitions: z.boolean().optional().default(true),
+    preferUserUploads: z.boolean().optional().default(true),
+  }).optional(),
 });
 
 export const ChessGameAnnotatedProps = ChessGameProps.extend({

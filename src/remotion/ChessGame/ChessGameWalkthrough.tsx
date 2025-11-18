@@ -22,6 +22,16 @@ import { LogoIntro } from "./LogoIntro";
 import { LogoOutroWithCTA } from "./LogoOutroWithCTA";
 import { ResultScreen } from "./ResultScreen";
 import { getMusicTrack } from "../../lib/music-config";
+import { SoundEffectLayer, AtmosphereSoundLayer } from "./SoundEffectLayer";
+import { generateSoundSchedule, filterOverlappingSounds } from "../../lib/sound-effect-triggers";
+import { DEFAULT_SOUND_SETTINGS } from "../../lib/sound-effects-config";
+import { VenueEstablishingShot, TransitionOverlay } from "./MediaLayer";
+import {
+  selectMediaForSegment,
+  DEFAULT_MEDIA_SETTINGS,
+  DEFAULT_MEDIA_LIBRARY,
+  type MediaAsset
+} from "../../lib/media-library-config";
 
 // Main game content component
 const GameContent = ({
@@ -306,6 +316,8 @@ export const ChessGameWalkthrough = ({
   gameInfo,
   orientation = "white",
   musicGenre = "none",
+  soundEffects,
+  mediaLibrary,
 }: z.infer<typeof ChessGameProps>) => {
   const { fps } = useVideoConfig();
 
@@ -323,6 +335,45 @@ export const ChessGameWalkthrough = ({
   // Get music track
   const musicTrack = getMusicTrack(musicGenre);
 
+  // Generate sound effect schedule
+  const soundSettings = soundEffects || DEFAULT_SOUND_SETTINGS;
+  const evaluations = useMemo(() => {
+    return moves.map((_, index) => {
+      return analysisResults?.moves?.[index]?.evaluation;
+    });
+  }, [moves, analysisResults]);
+
+  const soundTriggers = useMemo(() => {
+    if (!soundSettings.enabled) return [];
+    const triggers = generateSoundSchedule(moves, evaluations, soundSettings, fps);
+    return filterOverlappingSounds(triggers);
+  }, [moves, evaluations, soundSettings, fps]);
+
+  // Select B-roll media
+  const mediaSettings = mediaLibrary || DEFAULT_MEDIA_SETTINGS;
+  const venueMedia = useMemo(() => {
+    if (!mediaSettings.enabled) return null;
+    return selectMediaForSegment('intro', mediaSettings, undefined, DEFAULT_MEDIA_LIBRARY);
+  }, [mediaSettings]);
+
+  // Generate transition overlays at key moments (every 10 moves)
+  const transitionMedia = useMemo(() => {
+    if (!mediaSettings.enabled || !mediaSettings.useTransitions) return [];
+    const transitions: { media: MediaAsset; frame: number }[] = [];
+
+    for (let i = 10; i < moves.length; i += 10) {
+      const media = selectMediaForSegment('transition', mediaSettings, undefined, DEFAULT_MEDIA_LIBRARY);
+      if (media) {
+        transitions.push({
+          media,
+          frame: INTRO_DURATION + (i * fps)
+        });
+      }
+    }
+
+    return transitions;
+  }, [moves.length, mediaSettings, INTRO_DURATION, fps]);
+
   return (
     <AbsoluteFill>
       {/* Background Music */}
@@ -333,6 +384,38 @@ export const ChessGameWalkthrough = ({
           loop
         />
       )}
+
+      {/* Atmosphere Sounds */}
+      {soundSettings.enabled && soundSettings.atmosphereEnabled && (
+        <AtmosphereSoundLayer
+          soundPath="sounds/atmosphere/tournament-hall.mp3"
+          volume={0.15 * soundSettings.masterVolume}
+        />
+      )}
+
+      {/* Dynamic Sound Effects */}
+      {soundSettings.enabled && (
+        <SoundEffectLayer soundTriggers={soundTriggers} />
+      )}
+
+      {/* B-Roll: Venue Establishing Shot (overlaid on intro) */}
+      {venueMedia && mediaSettings.enabled && (
+        <VenueEstablishingShot
+          media={venueMedia}
+          durationInFrames={INTRO_DURATION}
+          startFrame={0}
+        />
+      )}
+
+      {/* B-Roll: Transition Overlays */}
+      {transitionMedia.map((transition, index) => (
+        <TransitionOverlay
+          key={`transition-${index}`}
+          media={transition.media}
+          startFrame={transition.frame}
+        />
+      ))}
+
       {/* Intro */}
       <Sequence durationInFrames={INTRO_DURATION}>
         <LogoIntro />
